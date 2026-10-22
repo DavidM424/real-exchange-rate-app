@@ -13,7 +13,7 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-The app opens at <http://localhost:8501>. It needs internet access to `api.imf.org`.
+The app opens at <[https://real-exchange-rate-appgit-gwyssv8tpsbyffyamblcyt.streamlit.app/>. It needs internet access to `api.imf.org`.
 
 ## How to use it
 
