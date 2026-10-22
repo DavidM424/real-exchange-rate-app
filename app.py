@@ -744,7 +744,7 @@ def main() -> None:
 
     # ---- download & table --------------------------------------------------- #
     export = export_frame(sample, iso1, iso2, cpi_info["cpi1"]["type"], cpi_info["cpi2"]["type"])
-       file_stem = f"rer_{iso1}_{iso2}_{start_label}_{end_label}"
+    file_stem = f"rer_{iso1}_{iso2}_{start_label}_{end_label}"
     xlsx_bytes = export_xlsx(export)
     d1, d2, _ = st.columns([1, 1, 2])
     d1.download_button(
