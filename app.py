@@ -16,6 +16,8 @@ Run with:  streamlit run app.py
 
 from __future__ import annotations
 
+import importlib.util
+import io
 import math
 import os
 import re
@@ -476,7 +478,31 @@ def export_frame(
     out["valid_month"] = out["valid_month"].astype(int)
     return out[EXPORT_COLUMNS].reset_index(drop=True)
 
+def export_xlsx(export: pd.DataFrame) -> bytes | None:
+    """The export as an Excel workbook with real numeric cells.
 
+    Numbers are stored as numbers at full precision, ``month`` as a true date shown as yyyy-mm, and months
+    without a valid RER / Real Index as empty cells. Returns None if the optional ``xlsxwriter`` package is
+    not installed, so the rest of the app keeps working.
+    """
+    if importlib.util.find_spec("xlsxwriter") is None:  # pandas uses it as the Excel engine
+        return None
+    frame = export.copy()
+    frame["month"] = pd.to_datetime(frame["month"] + "-01")  # real dates, not text
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(
+        buffer,
+        engine="xlsxwriter",
+        datetime_format="yyyy-mm",
+        engine_kwargs={"options": {"strings_to_formulas": False}},
+    ) as writer:
+        frame.to_excel(writer, sheet_name="RER", index=False)
+        sheet = writer.sheets["RER"]
+        sheet.freeze_panes(1, 1)
+        for i, name in enumerate(frame.columns):
+            sheet.set_column(i, i, max(10, len(name) + 2))
+    return buffer.getvalue()
+    
 def coverage_table(series: dict[str, pd.Series | None], cpi_info: dict[str, dict]) -> pd.DataFrame:
     rows = []
     for tag, label in SERIES_LABELS.items():
@@ -718,14 +744,33 @@ def main() -> None:
 
     # ---- download & table --------------------------------------------------- #
     export = export_frame(sample, iso1, iso2, cpi_info["cpi1"]["type"], cpi_info["cpi2"]["type"])
-    st.download_button(
-        "Download CSV (selected sample)",
+       file_stem = f"rer_{iso1}_{iso2}_{start_label}_{end_label}"
+    xlsx_bytes = export_xlsx(export)
+    d1, d2, _ = st.columns([1, 1, 2])
+    d1.download_button(
+        "Download CSV",
         data=export.to_csv(index=False).encode("utf-8"),
-        file_name=f"rer_{iso1}_{iso2}_{start_label}_{end_label}.csv",
+        file_name=f"{file_stem}.csv",
         mime="text/csv",
         on_click="ignore",
         icon=":material/download:",
+        width="stretch",
     )
+    if xlsx_bytes is not None:
+        d2.download_button(
+            "Download Excel (.xlsx)",
+            data=xlsx_bytes,
+            file_name=f"{file_stem}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            on_click="ignore",
+            icon=":material/table:",
+            width="stretch",
+        )
+        st.caption(
+            "Both files hold every observation and calculation in the selected sample period. In the Excel file every "
+            "number is stored as a number and the month as a date, so it can be used directly. The CSV is plain text; "
+            "some Excel language settings (for example a decimal comma) import its numbers as text."
+        )
     with st.expander("Show data table"):
         st.dataframe(export, hide_index=True, width="stretch")
     _show_sources(log, coverage)
